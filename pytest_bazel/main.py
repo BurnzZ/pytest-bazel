@@ -130,6 +130,30 @@ class BazelEnv:
 
 
 def _process_args(args: List[str], env: BazelEnv) -> List[str]:
+    # Note that pytest-bazel is run on top of the test target directory,
+    # and so no source files or source directories are passed as arguments.
+    # Instead, pytest tries to discover tests in the project directory.
+
+    test_target = os.environ.get("TEST_TARGET")
+    project_dir = test_target.lstrip("/").split(":")[0]
+
+    # strip out the `--test_base_path` passed from `py_pytest_test`
+    # and replace it with the project directory + the test directory
+    new_args = []
+    for arg in args:
+        if arg.startswith("--test_base_path"):
+            # NOTE: Uncomment this line to test the test_base_path override
+            # continue
+
+            test_dir = arg.split("=")[1]
+            test_dir = str(Path(project_dir) / test_dir)
+            print("Overriding test_base_path with: ", test_dir)
+            new_args.append(test_dir)
+        else:
+            new_args.append(arg)
+
+    args = new_args
+
     # pytest < 8.0 runs tests twice if __init__.py is passed explicitly as an argument.
     # Remove any __init__.py file to avoid that.
     # pytest.version_tuple is available since pytest 7.0
@@ -227,6 +251,7 @@ def main(
     """
     env = env or BazelEnv(os.environ)
     pytest_args = _pytest_args(args=args or sys.argv[1:], env=env)
+    print("Ran pytest.main with " + str(pytest_args))
 
     warnings_file = env.test_warnings_output_file
     if warnings_file:
